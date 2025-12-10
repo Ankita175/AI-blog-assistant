@@ -1,8 +1,8 @@
 import base64
 import streamlit as st
-from google import genai
+import google.generativeai as genai
+from google.generativeai import types
 from apikey import google_gemini_api_key
-from google.genai import types
 
 # Initialize the Gemini client
 genai_client = genai.Client(api_key=google_gemini_api_key)
