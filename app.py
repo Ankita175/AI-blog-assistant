@@ -2,10 +2,16 @@ import base64
 import streamlit as st
 import google.generativeai as genai
 from google.generativeai import types
-from apikey import google_gemini_api_key
+import os
 
-# Initialize the Gemini client
-genai_client = genai.Client(api_key=google_gemini_api_key)
+
+# Get API key (use environment variable for Streamlit Cloud)
+google_gemini_api_key = os.getenv('GOOGLE_GEMINI_API_KEY')
+
+
+# Configure Gemini
+genai.configure(api_key=google_gemini_api_key)
+
 
 # Blog generation
 def generate_blog(blog_title, keywords, num_words):
@@ -15,41 +21,37 @@ def generate_blog(blog_title, keywords, num_words):
         f"The blog should be about {num_words} words."
     )
 
-    contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
+    model = genai.GenerativeModel('gemini-pro')
+    
+    # Generate content with streaming
+    response = model.generate_content(prompt, stream=True)
     full_text = ""
-
-    for chunk in genai_client.models.generate_content_stream(
-        model="gemini-2.5-pro", contents=contents
-    ):
+    
+    for chunk in response:
         full_text += chunk.text or ""
+    
     return full_text
 
 
 # Image generation via Gemini multimodal output
 def generate_images(image_prompt, num_images=1):
     image_urls = []
+    model = genai.GenerativeModel('gemini-pro')
+    
     for _ in range(num_images):
-        response = genai_client.models.generate_content(
-            model="gemini-2.5-pro",
-            contents=[
-                types.Content(
-                    role="user",
-                    parts=[
-                        types.Part.from_text(
-                            text=f"Generate a detailed image based on: {image_prompt}. Output as base64 encoded PNG."
-                        )
-                    ],
-                )
-            ],
-        )
-
-        # Extract base64 image content if it exists
-        if hasattr(response, "candidates") and response.candidates:
-            parts = response.candidates[0].content.parts
-            for part in parts:
-                if part.inline_data:
-                    img_data = base64.b64decode(part.inline_data.data)
-                    st.image(img_data, use_container_width=True)
+        try:
+            response = model.generate_content(
+                f"Generate a detailed image based on: {image_prompt}. Output as base64 encoded PNG."
+            )
+            
+            # Note: Gemini Pro doesn't generate actual images
+            # This is a text-based response
+            st.info("Note: Gemini Pro generates text descriptions, not actual images.")
+            st.write(response.text)
+            
+        except Exception as e:
+            st.error(f"Image generation error: {e}")
+    
     return image_urls
 
 
@@ -57,6 +59,7 @@ def generate_images(image_prompt, num_images=1):
 st.set_page_config(layout="wide")
 st.title("✍️🤖 BlogBuddy - Blog Text + Image AI Generator")
 st.subheader("Generate blogs and images.")
+
 
 with st.sidebar:
     st.title("Input Details")
@@ -66,6 +69,7 @@ with st.sidebar:
     image_prompt = st.text_area("Image Description")
     num_images = st.number_input("Number of Images", 0, 5, 1)
     submit_button = st.button("Generate")
+
 
 if submit_button:
     if not blog_title or not keywords:
